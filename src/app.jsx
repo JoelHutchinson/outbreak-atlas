@@ -1,84 +1,67 @@
-// deck.gl
-// SPDX-License-Identifier: MIT
-// Copyright (c) vis.gl contributors
+import React, { useState } from "react";
+import { createRoot } from "react-dom/client";
+import { Map, NavigationControl, useControl } from "react-map-gl/maplibre";
+import { GeoJsonLayer } from "deck.gl";
+import { MapboxOverlay as DeckOverlay } from "@deck.gl/mapbox";
+import "maplibre-gl/dist/maplibre-gl.css";
 
-import React, {useState} from 'react';
-import {createRoot} from 'react-dom/client';
-import {Map, NavigationControl, Popup, useControl} from 'react-map-gl/maplibre';
-import {GeoJsonLayer, ArcLayer} from 'deck.gl';
-import {MapboxOverlay as DeckOverlay} from '@deck.gl/mapbox';
-import 'maplibre-gl/dist/maplibre-gl.css';
-
-// source: Natural Earth http://www.naturalearthdata.com/ via geojson.xyz
-const AIR_PORTS =
-  'https://d2ad6b4ur7yvpq.cloudfront.net/naturalearth-3.3.0/ne_10m_airports.geojson';
-
-const INITIAL_VIEW_STATE = {
-  latitude: 51.47,
-  longitude: 0.45,
-  zoom: 4,
-  bearing: 0,
-  pitch: 30
+const countryData = {
+  BRA: 75,
+  CAN: 30,
+  IND: 90,
+  // etc.
 };
 
-const MAP_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
-function DeckGLOverlay(props) {
-  const overlay = useControl(() => new DeckOverlay(props));
-  overlay.setProps(props);
+// GeoJSON with country borders
+const COUNTRY_BORDERS =
+  "https://d2ad6b4ur7yvpq.cloudfront.net/naturalearth-3.3.0/ne_110m_admin_0_countries.geojson";
+
+const INITIAL_VIEW_STATE = {
+  latitude: 20,
+  longitude: 0,
+  zoom: 1.5,
+  bearing: 0,
+  pitch: 0,
+};
+
+const MAP_STYLE =
+  "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
+
+function DeckGLOverlay({ layers }) {
+  const overlay = useControl(() => new DeckOverlay({ layers }));
+  overlay.setProps({ layers });
   return null;
 }
 
 function Root() {
-  const [selected, setSelected] = useState(null);
-
   const layers = [
     new GeoJsonLayer({
-      id: 'airports',
-      data: AIR_PORTS,
-      // Styles
-      filled: true,
-      pointRadiusMinPixels: 2,
-      pointRadiusScale: 2000,
-      getPointRadius: f => 11 - f.properties.scalerank,
-      getFillColor: [200, 0, 80, 180],
-      // Interactive props
+      id: "countries",
+      data: COUNTRY_BORDERS,
       pickable: true,
       autoHighlight: true,
-      onClick: info => setSelected(info.object)
-      // beforeId: 'watername_ocean' // In interleaved mode, render the layer under map labels
+      highlightColor: [255, 0, 0, 40], // semi-transparent red
+      stroked: true,
+      filled: true,
+      getLineColor: [80, 80, 80],
+      getFillColor: (f) => {
+        const value = countryData[f.properties.adm0_a3];
+        if (value === undefined) return [200, 200, 200, 80]; // default color for missing data
+
+        // Example: Red intensity based on value (0–100)
+        return [255, 0, 0, Math.min(255, value)];
+      },
+      lineWidthMinPixels: 1,
     }),
-    new ArcLayer({
-      id: 'arcs',
-      data: AIR_PORTS,
-      dataTransform: d => d.features.filter(f => f.properties.scalerank < 4),
-      // Styles
-      getSourcePosition: f => [-0.4531566, 51.4709959], // London
-      getTargetPosition: f => f.geometry.coordinates,
-      getSourceColor: [0, 128, 200],
-      getTargetColor: [200, 0, 80],
-      getWidth: 1
-    })
   ];
 
   return (
     <Map initialViewState={INITIAL_VIEW_STATE} mapStyle={MAP_STYLE}>
-      {selected && (
-        <Popup
-          key={selected.properties.name}
-          anchor="bottom"
-          style={{zIndex: 10}} /* position above deck.gl canvas */
-          longitude={selected.geometry.coordinates[0]}
-          latitude={selected.geometry.coordinates[1]}
-        >
-          {selected.properties.name} ({selected.properties.abbrev})
-        </Popup>
-      )}
-      <DeckGLOverlay layers={layers} /* interleaved*/ />
+      <DeckGLOverlay layers={layers} />
       <NavigationControl position="top-left" />
     </Map>
   );
 }
 
-/* global document */
-const container = document.body.appendChild(document.createElement('div'));
+const container = document.body.appendChild(document.createElement("div"));
 createRoot(container).render(<Root />);
